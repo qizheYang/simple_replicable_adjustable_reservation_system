@@ -1,39 +1,119 @@
-# 预约系统
+# RSVP - Eastwind Mahjong Reservation System
 
-## Club State
+Reservation system for Eastwind Riichi mahjong club. Users book time slots on mahjong machines without login.
 
-- 麻将桌
-- - 白色8口机
-- - 黑色8口机
-- - 白色4口机
-- - 大麻将机1
-- - 大麻将机2
+## Tech Stack
 
-- 时间段：按照小时区分
-- 日期：每一日单独
+Follows the Eastwind ecosystem patterns (see `mahjong-recording`, `narts`):
 
-## User State
+- **Frontend**: React + Vite + TypeScript
+- **Backend**: Express + TypeScript (tsx for dev, tsc for build)
+- **Database**: Prisma + SQLite
+- **Testing**: Vitest
+- **UI**: Black and white, modern minimalist design. No color.
 
-- 用户名：不需要登录，直接输入就可以
-- desired 麻将桌：可以null
-- 时段：必须填写
+## Project Structure
 
-# objective
+```
+rsvp/
+  client/          # React SPA (Vite)
+  server/          # Express API
+    prisma/
+      schema.prisma
+    src/
+      index.ts     # entry point
+      routes/
+  shared/          # shared types between client/server
+```
 
-制造这样一个预约系统：
-- 对于一个用户，ta可以看到麻将店中的预约状态：X机器在Y日Z时段的预约的其他username以及时常
-- 对于一个用户，ta可以直接将自己的username加入任何麻将机的空余的预约，或者选择“任何麻将机都可以”
-- 对于“任何麻将机都可以”，需要区分你是玩立直 OR 其他，对于立直可以选择分配012号，对于其他选择分配34号
+## Machines
 
-任何用户都不需要登录就可以查看或者预约
-当你预约时，你需要输入手机号
+5 mahjong machines, referenced by ID:
 
-# UI
+All machines seat a maximum of **4 players**.
 
-完全采用黑白的 现代的设计风格
+| ID | Code Name | UI Display |
+|----|-----------|------------|
+| 0  | White 8   | 白色八口机  |
+| 1  | Black 8   | 黑色八口机  |
+| 2  | White 4   | 白色四口机  |
+| 3  | Large 1   | 国麻桌1    |
+| 4  | Large 2   | 国麻桌2    |
 
-# deployment
+## Business Logic
 
-将会在`eastwindriichi.com/rsvp`，查看同大dir中其他文件的部署
-ssh root@eastwindriichi.com etc..
-deploy之前先在本地运行查看
+### Booking Rules
+
+- No authentication required for viewing or booking
+- When booking, user provides: **username**, **phone number**, **time slot**, and optionally a **specific machine**
+- Time slots are hourly divisions within a single day
+- A user can book a specific machine or choose "any machine"
+
+### Auto-Assignment ("Any Machine")
+
+When user selects "any machine", they must specify play style:
+
+- **Riichi (立直)**: assign to machines 0, 1, or 2 (White 8 / Black 8 / White 4)
+- **Other (国麻)**: assign to machines 3 or 4 (Large 1 / Large 2)
+
+Assignment should prefer machines with the most existing players in the same time slot (to fill tables faster).
+
+### Viewing
+
+Any user can view the full booking status: which usernames are booked on which machine, for which date and time slot.
+
+## Admin Portal
+
+Accessible at `/admin`. Requires password authentication (stored in server `.env` as `ADMIN_PASSWORD`).
+
+Admin capabilities:
+- **Lock tables**: Reserve/lock a machine for a time slot (for 包桌 or tournaments). Locked slots show as unavailable to regular users.
+- **Cancel bookings**: Remove any player's reservation.
+- **View all bookings**: Full overview of all reservations.
+
+## API Design
+
+```
+GET    /api/bookings?date=YYYY-MM-DD          # all bookings for a date
+POST   /api/bookings                           # create booking
+DELETE /api/bookings/:id?phone=xxx             # cancel (verify phone)
+GET    /api/machines                           # list machines
+
+# Admin (requires Authorization header)
+POST   /api/admin/login                        # verify password, return token
+DELETE /api/admin/bookings/:id                 # cancel any booking
+POST   /api/admin/locks                        # lock a machine/time slot
+DELETE /api/admin/locks/:id                    # unlock
+GET    /api/admin/locks?date=YYYY-MM-DD        # list locks for a date
+```
+
+## Development
+
+```bash
+# Install
+npm install
+
+# Dev (runs both client and server)
+npm run dev
+
+# Client only
+npm run dev:client
+
+# Server only
+npm run dev:server
+
+# Build
+npm run build
+
+# Test
+npm test
+```
+
+## Deployment
+
+- URL: `eastwindriichi.com/rsvp`
+- Server: `ssh root@137.184.81.194` (same as other Eastwind services)
+- Deploy path: `/var/www/eastwindriichi.com/rsvp/`
+- Process manager: PM2 (consistent with `eastwind-api`, `riichi-api`)
+- Always test locally before deploying
+- Client build output served as static files; server runs behind Nginx reverse proxy

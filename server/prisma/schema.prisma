@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  username  String
+  phone     String
+  date      String   // YYYY-MM-DD
+  timeSlot  String   // "HH:00" (10:00-27:00)
+  machineId Int      // -1 = riichi waitlist, -2 = guoma waitlist
+  createdAt DateTime @default(now())
+
+  @@unique([date, timeSlot, machineId, username])
+}
+
+model Lock {
+  id        Int      @id @default(autoincrement())
+  machineId Int
+  date      String
+  timeSlot  String
+  reason    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([date, timeSlot, machineId])
+}

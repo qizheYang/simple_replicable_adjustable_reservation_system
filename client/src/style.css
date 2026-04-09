@@ -1,0 +1,723 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  background: #fff;
+  color: #000;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 24px;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* Date picker */
+.date-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.date-bar input[type="date"] {
+  font-size: 16px;
+  padding: 8px 12px;
+  border: 2px solid #000;
+  background: #fff;
+  font-family: inherit;
+}
+
+.date-bar button {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+/* ===== Booking Table ===== */
+.grid-wrap {
+  overflow-x: auto;
+}
+
+.booking-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px solid #000;
+  table-layout: fixed;
+}
+
+/* Machine name header */
+.th-machine {
+  background: #000;
+  color: #fff;
+  padding: 6px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #444;
+  border-left: 2px solid #333;
+}
+
+/* Time header */
+.th-time {
+  background: #000;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  width: 50px;
+  border-right: 2px solid #444;
+  border-bottom: 2px solid #444;
+}
+
+/* Waitlist header */
+.th-waitlist {
+  background: #222;
+  color: #fff;
+  padding: 4px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  border-left: 2px solid #444;
+  border-bottom: 2px solid #444;
+  width: 64px;
+  line-height: 1.3;
+}
+
+/* Seat number sub-header */
+.th-seat {
+  background: #1a1a1a;
+  color: #777;
+  font-size: 9px;
+  font-weight: 400;
+  text-align: center;
+  padding: 2px 0;
+  border-bottom: 2px solid #000;
+  border-left: 1px solid #333;
+}
+
+.th-seat-waitlist {
+  background: #1a1a1a;
+  border-bottom: 2px solid #000;
+  border-left: 2px solid #444;
+  padding: 2px 0;
+}
+
+/* Time cell */
+.td-time {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  padding: 2px 4px;
+  border-bottom: 1px solid #ddd;
+  border-right: 2px solid #000;
+  white-space: nowrap;
+}
+
+/* Seat cell */
+.td-seat {
+  border-bottom: 1px solid #ddd;
+  border-left: 1px solid #eee;
+  height: 28px;
+  cursor: pointer;
+  transition: background 0.08s;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0 1px;
+}
+
+.td-seat:hover {
+  background: #f0f0f0;
+}
+
+.td-seat.seat-border-right {
+  border-right: 2px solid #ccc;
+}
+
+.td-seat.locked {
+  background: #f0f0f0;
+  cursor: not-allowed;
+}
+
+.td-seat.locked:hover {
+  background: #f0f0f0;
+}
+
+.td-seat.selected {
+  background: #ddd;
+}
+
+.td-seat.filled {
+  background: #000;
+  color: #fff;
+}
+
+.player-name {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.lock-label {
+  font-size: 9px;
+  color: #aaa;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Waitlist cell */
+.td-waitlist {
+  border-bottom: 1px solid #ddd;
+  border-left: 2px solid #000;
+  height: 28px;
+  cursor: pointer;
+  padding: 2px 3px;
+  vertical-align: top;
+  transition: background 0.08s;
+}
+
+.td-waitlist:hover {
+  background: #f5f5f5;
+}
+
+.td-waitlist.selected {
+  background: #ddd;
+}
+
+.wl-name {
+  display: block;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* Desktop cancel mode */
+.desktop-cancel-input {
+  margin-bottom: 16px;
+}
+
+.desktop-cancel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  background: #fff3cd;
+  border: 2px solid #000;
+  font-size: 13px;
+}
+
+.td-seat.user-highlight-cell {
+  background: #fff3cd !important;
+}
+
+.td-seat.cancel-selected-cell {
+  background: #fdd !important;
+  color: #c00 !important;
+}
+
+.td-waitlist.cancel-selected-cell {
+  background: #fdd !important;
+}
+
+.wl-user-highlight {
+  color: #c00;
+  font-weight: 600;
+}
+
+.wl-cancel-selected {
+  background: #c00;
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.desktop-cancel-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 16px;
+  border: 2px solid #c00;
+  background: #fff;
+}
+
+.desktop-cancel-bar .cancel-phone-input {
+  flex: 1;
+  max-width: 300px;
+  margin-bottom: 0;
+}
+
+.td-seat.unlock-selected-cell {
+  background: #fdd !important;
+  color: #c00 !important;
+}
+
+/* Admin mode buttons */
+.admin-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* ===== Buttons ===== */
+button {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 20px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.1s;
+}
+
+button:hover {
+  background: #000;
+  color: #fff;
+}
+
+button.primary {
+  background: #000;
+  color: #fff;
+}
+
+button.primary:hover {
+  background: #333;
+}
+
+button.danger {
+  border-color: #c00;
+  color: #c00;
+}
+
+button.danger:hover {
+  background: #c00;
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #fff;
+  border: 2px solid #000;
+  padding: 32px;
+  max-width: 420px;
+  width: 90%;
+}
+
+.modal h2 {
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.form-group .optional {
+  font-weight: 400;
+  color: #999;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #000;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* Error / Success */
+.error {
+  color: #c00;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.success {
+  color: #090;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ===== Admin ===== */
+.admin-login {
+  max-width: 360px;
+  margin: 80px auto;
+}
+
+.admin-section {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.lock-list {
+  margin-top: 12px;
+}
+
+.lock-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+}
+
+/* Nav */
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.nav a {
+  color: #000;
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px solid #000;
+}
+
+.nav a:hover {
+  opacity: 0.6;
+}
+
+/* Language switcher */
+.lang-switcher {
+  display: flex;
+  gap: 2px;
+}
+
+.lang-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid #000;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.lang-btn.active {
+  background: #000;
+  color: #fff;
+}
+
+.lang-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* ===== Mobile View ===== */
+.mobile-view {
+  /* allow normal page scrolling */
+}
+
+.mobile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.mobile-tab {
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobile-tab.active {
+  background: #000;
+  color: #fff;
+}
+
+.mobile-hint {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.mobile-slots {
+  border: 2px solid #000;
+  border-bottom: none;
+}
+
+.mobile-slot {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+
+.mobile-slot:active {
+  background: #f0f0f0;
+}
+
+.mobile-slot.selected {
+  background: #ddd;
+}
+
+.mobile-slot.locked {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.mobile-slot.full {
+  opacity: 0.5;
+}
+
+.mobile-slot-time {
+  width: 56px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  flex-shrink: 0;
+  border-right: 2px solid #000;
+  padding: 8px 4px;
+}
+
+.mobile-slot-players {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  padding: 4px 8px;
+  align-items: center;
+}
+
+/* 4 seat boxes in mobile */
+.mobile-seat {
+  flex: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  border: 1px solid #eee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-seat.filled {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+
+.mobile-seat.empty {
+  background: #fafafa;
+}
+
+.mobile-player-tag {
+  font-size: 11px;
+  background: #eee;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.mobile-lock {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+}
+
+/* Cancel mode */
+.mobile-cancel-input {
+  margin-bottom: 16px;
+}
+
+.mobile-cancel-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mobile-cancel-row input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #000;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.mobile-cancel-row button {
+  padding: 10px 20px;
+}
+
+.mobile-cancel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+}
+
+.mobile-cancel-user {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.mobile-change-user {
+  padding: 4px 12px !important;
+  font-size: 12px !important;
+}
+
+.mobile-slot.user-booked {
+  background: #fff3cd;
+  border-left: 3px solid #000;
+}
+
+.mobile-slot.cancel-selected {
+  background: #fdd;
+  border-left: 3px solid #c00;
+}
+
+.mobile-seat.user-highlight,
+.mobile-player-tag.user-highlight {
+  background: #c00 !important;
+  color: #fff !important;
+  border-color: #c00 !important;
+}
+
+.mobile-tab-badge {
+  display: inline-block;
+  background: #c00;
+  color: #fff;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  line-height: 16px;
+}
+
+.cancel-bar {
+  flex-direction: column;
+}
+
+.cancel-phone-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #000;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+/* Floating confirm bar */
+.mobile-confirm-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 2px solid #000;
+  padding: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+}
+
+.mobile-confirm-btn {
+  flex: 1;
+  padding: 14px 20px;
+  font-size: 16px;
+}
+
+.mobile-clear-btn {
+  padding: 14px 16px;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px 8px;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+
+  .date-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .date-bar input[type="date"] {
+    font-size: 14px;
+    padding: 6px 8px;
+  }
+
+  .date-bar button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .modal {
+    padding: 24px 16px;
+  }
+}
