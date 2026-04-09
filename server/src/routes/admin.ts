@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../index';
 import { MACHINES, LockRequest } from 'shared';
+import { notifyBookingCancelled, notifyLockCreated, notifyLockRemoved } from '../notifier';
 
 export const adminRoutes = Router();
 
@@ -47,6 +48,7 @@ adminRoutes.delete('/bookings/:id', adminAuth, async (req: Request, res: Respons
     return;
   }
   await prisma.booking.delete({ where: { id } });
+  notifyBookingCancelled({ username: booking.username, date: booking.date, timeSlot: booking.timeSlot, machineId: booking.machineId });
   res.json({ success: true });
 });
 
@@ -74,6 +76,7 @@ adminRoutes.post('/locks', adminAuth, async (req: Request, res: Response) => {
     )
   );
 
+  notifyLockCreated(locks.map((l) => ({ machineId: l.machineId, date: l.date, timeSlot: l.timeSlot, reason: l.reason })));
   res.status(201).json(locks);
 });
 
@@ -86,6 +89,7 @@ adminRoutes.delete('/locks/:id', adminAuth, async (req: Request, res: Response) 
     return;
   }
   await prisma.lock.delete({ where: { id } });
+  notifyLockRemoved({ machineId: lock.machineId, date: lock.date, timeSlot: lock.timeSlot });
   res.json({ success: true });
 });
 

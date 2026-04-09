@@ -7,6 +7,7 @@ import {
   WAITLIST_GUOMA,
   BookingRequest,
 } from 'shared';
+import { notifyBookingCreated, notifyBookingCancelled } from '../notifier';
 
 export const bookingRoutes = Router();
 
@@ -95,6 +96,7 @@ bookingRoutes.post('/', async (req: Request, res: Response) => {
     return;
   }
 
+  notifyBookingCreated(results.map((b) => ({ username: b.username, date: b.date, timeSlot: b.timeSlot, machineId: b.machineId })));
   res.status(201).json({ bookings: results, errors });
 });
 
@@ -121,5 +123,6 @@ bookingRoutes.delete('/:id', async (req: Request, res: Response) => {
   }
 
   await prisma.booking.delete({ where: { id } });
+  notifyBookingCancelled({ username: booking.username, date: booking.date, timeSlot: booking.timeSlot, machineId: booking.machineId });
   res.json({ success: true });
 });
