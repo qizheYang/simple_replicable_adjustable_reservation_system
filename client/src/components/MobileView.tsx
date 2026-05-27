@@ -1,268 +1,311 @@
 import { useState } from 'react';
-import { MACHINES, TIME_SLOTS, MAX_PLAYERS, WAITLIST_RIICHI, WAITLIST_GUOMA } from 'shared';
+import {
+  TIME_SLOTS, MAX_PLAYERS,
+  RIICHI_MACHINE_IDS, GUOMA_MACHINE_IDS,
+  AUTO_RIICHI, isGuomaMachine,
+} from 'shared';
 import type { Booking, Lock } from 'shared';
 import { useI18n } from '../i18n';
+import { buildOvernightRows, type SlotRef } from '../utils';
 
 interface Props {
   bookings: Booking[];
   locks: Lock[];
+  primaryDate: string;
   mode: 'book' | 'cancel';
-  onSelect: (machineId: number, timeSlots: string[]) => void;
-  onCancelBookings: (bookingIds: number[], phone: string) => void;
+  onSelect: (machineId: number, slots: SlotRef[]) => void;
+  cancelUsername: string;
+  cancelConfirmed: boolean;
+  selectedBookingIds: Set<number>;
+  selectedLockIds: Set<number>;
+  onToggleCancel: (machineId: number, slot: SlotRef) => void;
 }
 
-export function MobileView({ bookings, locks, mode, onSelect, onCancelBookings }: Props) {
+const slotKey = (s: SlotRef) => `${s.date}|${s.timeSlot}`;
+
+export function MobileView({
+  bookings, locks, primaryDate, mode, onSelect,
+  cancelUsername, cancelConfirmed,
+  selectedBookingIds, selectedLockIds, onToggleCancel,
+}: Props) {
   const { t, machineDisplay } = useI18n();
 
-  const COLUMNS = [
-    ...MACHINES.map((m) => ({ id: m.id, label: machineDisplay(m.id) })),
-    { id: WAITLIST_RIICHI, label: t('waitlistRiichi') },
-    { id: WAITLIST_GUOMA, label: t('waitlistGuoma') },
+  const RIICHI_COLUMNS = [
+    ...RIICHI_MACHINE_IDS.map((id) => ({ id, label: machineDisplay(id), kind: 'riichi' as const })),
+    { id: AUTO_RIICHI, label: t('autoRiichi'), kind: 'auto' as const },
   ];
+  const GUOMA_COLUMNS = GUOMA_MACHINE_IDS.map((id) => ({ id, label: machineDisplay(id), kind: 'guoma' as const }));
+  const ALL_COLUMNS = [...RIICHI_COLUMNS, ...GUOMA_COLUMNS];
 
-  const [activeCol, setActiveCol] = useState(COLUMNS[0].id);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [activeCol, setActiveCol] = useState(ALL_COLUMNS[0].id);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [selectedSlots, setSelectedSlots] = useState<SlotRef[]>([]);
 
-  // Cancel mode state
-  const [cancelUsername, setCancelUsername] = useState('');
-  const [cancelUsernameConfirmed, setCancelUsernameConfirmed] = useState(false);
-  const [selectedBookingIds, setSelectedBookingIds] = useState<Set<number>>(new Set());
-  const [cancelPhone, setCancelPhone] = useState('');
+  const rows = buildOvernightRows(primaryDate, TIME_SLOTS);
+  const firstOvernightIdx = rows.findIndex((r) => r.isOvernight);
 
-  const isWaitlist = activeCol === WAITLIST_RIICHI || activeCol === WAITLIST_GUOMA;
+  const activeKind: 'riichi-package' | 'auto' | 'guoma' =
+    activeCol === AUTO_RIICHI ? 'auto'
+    : isGuomaMachine(activeCol) ? 'guoma'
+    : 'riichi-package';
 
-  const getBookings = (slot: string) =>
-    bookings.filter((b) => b.machineId === activeCol && b.timeSlot === slot);
+  const getLock = (date: string, timeSlot: string) =>
+    locks.find((l) => l.machineId === activeCol && l.date === date && l.timeSlot === timeSlot);
 
-  const getLock = (slot: string) =>
-    locks.find((l) => l.machineId === activeCol && l.timeSlot === slot);
+  const individualRiichiBookings = (date: string, timeSlot: string) =>
+    bookings.filter((b) =>
+      b.date === date && b.timeSlot === timeSlot &&
+      (b.machineId === AUTO_RIICHI || RIICHI_MACHINE_IDS.includes(b.machineId)),
+    );
 
-  const isAvailable = (slot: string) => {
-    if (isWaitlist) return true;
-    if (getLock(slot)) return false;
-    if (getBookings(slot).length >= MAX_PLAYERS) return false;
-    return true;
+  const autoStats = (date: string, timeSlot: string) => {
+    const total = RIICHI_MACHINE_IDS.length * MAX_PLAYERS;
+    const locked = RIICHI_MACHINE_IDS.filter((id) =>
+      locks.find((l) => l.machineId === id && l.date === date && l.timeSlot === timeSlot),
+    ).length;
+    const booked = individualRiichiBookings(date, timeSlot).length;
+    const effectiveCap = total - locked * MAX_PLAYERS;
+    const remaining = Math.max(0, effectiveCap - booked);
+    return { total, booked, locked, effectiveCap, remaining, queueing: booked >= effectiveCap };
   };
 
-  // Book mode: toggle slot
-  const toggleSlot = (slot: string) => {
+  const packageAvailableAt = (date: string, timeSlot: string) => {
+    if (locks.find((l) => l.machineId === activeCol && l.date === date && l.timeSlot === timeSlot)) return false;
+    return bookings.filter((b) => b.machineId === activeCol && b.date === date && b.timeSlot === timeSlot).length === 0;
+  };
+
+  // Walk-in tab is always clickable (overflow → queue); other tabs use availability check.
+  const isAvailable = (slot: SlotRef) => {
+    if (activeKind === 'auto') return true;
+    return packageAvailableAt(slot.date, slot.timeSlot);
+  };
+
+  const toggleSlot = (slot: SlotRef) => {
     if (!isAvailable(slot)) return;
-    setSelected((prev) => {
+    const k = slotKey(slot);
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(slot)) next.delete(slot);
-      else next.add(slot);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
       return next;
+    });
+    setSelectedSlots((prev) => {
+      const exists = prev.find((s) => slotKey(s) === k);
+      if (exists) return prev.filter((s) => slotKey(s) !== k);
+      return [...prev, slot];
     });
   };
 
   const handleBookConfirm = () => {
-    if (selected.size > 0) {
-      onSelect(activeCol, Array.from(selected).sort());
-      setSelected(new Set());
+    if (selectedSlots.length > 0) {
+      const sorted = [...selectedSlots].sort((a, b) =>
+        a.date === b.date ? a.timeSlot.localeCompare(b.timeSlot) : a.date.localeCompare(b.date)
+      );
+      onSelect(activeCol, sorted);
+      setSelectedKeys(new Set());
+      setSelectedSlots([]);
     }
   };
 
-  // Cancel mode: find user's bookings on active table
-  const userBookings = cancelUsernameConfirmed
-    ? bookings.filter(
-        (b) =>
-          b.machineId === activeCol &&
-          b.username.toLowerCase() === cancelUsername.trim().toLowerCase()
-      )
+  const userLower = () => cancelUsername.trim().toLowerCase();
+
+  const userBookings = cancelConfirmed
+    ? activeKind === 'auto'
+      ? bookings.filter((b) =>
+          (b.machineId === AUTO_RIICHI || RIICHI_MACHINE_IDS.includes(b.machineId)) &&
+          b.username.toLowerCase() === userLower(),
+        )
+      : bookings.filter((b) => b.machineId === activeCol && b.username.toLowerCase() === userLower())
     : [];
-
-  const userBookedSlots = new Set(userBookings.map((b) => b.timeSlot));
-
-  const toggleCancelSlot = (slot: string) => {
-    const booking = userBookings.find((b) => b.timeSlot === slot);
-    if (!booking) return;
-    setSelectedBookingIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(booking.id)) next.delete(booking.id);
-      else next.add(booking.id);
-      return next;
-    });
-  };
-
-  const handleCancelConfirm = () => {
-    if (selectedBookingIds.size > 0) {
-      onCancelBookings(Array.from(selectedBookingIds), cancelPhone.trim());
-    }
-  };
-
-  const handleConfirmUsername = () => {
-    if (cancelUsername.trim()) {
-      setCancelUsernameConfirmed(true);
-      setSelectedBookingIds(new Set());
-    }
-  };
+  const userLocks = cancelConfirmed
+    ? activeKind === 'auto'
+      ? []
+      : locks.filter((l) => l.machineId === activeCol && l.username && l.username.toLowerCase() === userLower())
+    : [];
+  const userBookedKeys = new Set([
+    ...userBookings.map((b) => `${b.date}|${b.timeSlot}`),
+    ...userLocks.map((l) => `${l.date}|${l.timeSlot}`),
+  ]);
 
   const switchTable = (colId: number) => {
     setActiveCol(colId);
-    setSelected(new Set());
-    setSelectedBookingIds(new Set());
+    setSelectedKeys(new Set());
+    setSelectedSlots([]);
   };
 
   return (
     <div className="mobile-view">
-      {/* Cancel mode: username input */}
-      {mode === 'cancel' && !cancelUsernameConfirmed && (
-        <div className="mobile-cancel-input">
-          <p className="mobile-hint">{t('enterNameToCancel')}</p>
-          <div className="mobile-cancel-row">
-            <input
-              value={cancelUsername}
-              onChange={(e) => setCancelUsername(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleConfirmUsername()}
-              placeholder={t('username')}
-              autoFocus
-            />
-            <button className="primary" onClick={handleConfirmUsername} disabled={!cancelUsername.trim()}>
-              {t('confirm')}
+      <div className="mobile-section-label">{t('sectionRiichi')}</div>
+      <div className="mobile-tabs">
+        {RIICHI_COLUMNS.map((col) => {
+          const colCount = mode === 'cancel'
+            ? col.kind === 'auto'
+              ? bookings.filter((b) =>
+                  (b.machineId === AUTO_RIICHI || RIICHI_MACHINE_IDS.includes(b.machineId)) &&
+                  b.username.toLowerCase() === userLower(),
+                ).length
+              : locks.filter((l) => l.machineId === col.id && l.username && l.username.toLowerCase() === userLower()).length
+            : 0;
+          return (
+            <button
+              key={col.id}
+              className={`mobile-tab ${activeCol === col.id ? 'active' : ''} ${col.kind === 'auto' ? 'mobile-tab-auto' : ''}`}
+              onClick={() => switchTable(col.id)}
+            >
+              {col.label}
+              {colCount > 0 && <span className="mobile-tab-badge">{colCount}</span>}
             </button>
-          </div>
-        </div>
+          );
+        })}
+      </div>
+
+      <div className="mobile-section-label">{t('sectionGuoma')}</div>
+      <div className="mobile-tabs">
+        {GUOMA_COLUMNS.map((col) => {
+          const colCount = mode === 'cancel'
+            ? locks.filter((l) => l.machineId === col.id && l.username && l.username.toLowerCase() === userLower()).length
+            : 0;
+          return (
+            <button
+              key={col.id}
+              className={`mobile-tab ${activeCol === col.id ? 'active' : ''}`}
+              onClick={() => switchTable(col.id)}
+            >
+              {col.label}
+              {colCount > 0 && <span className="mobile-tab-badge">{colCount}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {mode === 'cancel' && cancelConfirmed && userBookings.length === 0 && userLocks.length === 0 && (
+        <p className="mobile-hint" style={{ color: 'var(--c-red)' }}>{t('noBookingsForUser')}</p>
+      )}
+      {mode === 'cancel' && cancelConfirmed && (userBookings.length > 0 || userLocks.length > 0) && (
+        <p className="mobile-hint">{t('yourBookings')}</p>
+      )}
+      {mode === 'book' && activeKind === 'auto' && (
+        <p className="mobile-hint">{t('autoRiichiTip')}</p>
+      )}
+      {mode === 'book' && activeKind === 'guoma' && (
+        <p className="mobile-hint">{t('guomaPackageOnly')}</p>
+      )}
+      {mode === 'book' && activeKind === 'riichi-package' && (
+        <p className="mobile-hint">{t('bookEntireTableHint')}</p>
       )}
 
-      {/* Show table tabs & slots after username confirmed (cancel) or always (book) */}
-      {(mode === 'book' || cancelUsernameConfirmed) && (
-        <>
-          {mode === 'cancel' && (
-            <div className="mobile-cancel-header">
-              <span className="mobile-cancel-user">{cancelUsername}</span>
-              <button
-                className="mobile-change-user"
-                onClick={() => {
-                  setCancelUsernameConfirmed(false);
-                  setSelectedBookingIds(new Set());
-                }}
-              >
-                {t('cancel')}
-              </button>
-            </div>
-          )}
+      <div className="mobile-slots">
+        {rows.map((row, idx) => {
+          const showDivider = idx === firstOvernightIdx && firstOvernightIdx > 0;
+          const slot: SlotRef = { date: row.date, timeSlot: row.timeSlot };
+          const lock = getLock(row.date, row.timeSlot);
+          const avail = isAvailable(slot);
 
-          <div className="mobile-tabs">
-            {COLUMNS.map((col) => {
-              // In cancel mode, show count of user's bookings per table
-              const colBookingCount = mode === 'cancel'
-                ? bookings.filter(
-                    (b) =>
-                      b.machineId === col.id &&
-                      b.username.toLowerCase() === cancelUsername.trim().toLowerCase()
-                  ).length
-                : 0;
+          const isUserSlot = mode === 'cancel' && userBookedKeys.has(slotKey(slot));
+          const userBooking = userBookings.find((b) => b.date === row.date && b.timeSlot === row.timeSlot);
+          const userLock = userLocks.find((l) => l.date === row.date && l.timeSlot === row.timeSlot);
+          const isCancelSelected =
+            (userBooking && selectedBookingIds.has(userBooking.id)) ||
+            (userLock && selectedLockIds.has(userLock.id));
 
-              return (
-                <button
-                  key={col.id}
-                  className={`mobile-tab ${activeCol === col.id ? 'active' : ''}`}
-                  onClick={() => switchTable(col.id)}
-                >
-                  {col.label}
-                  {colBookingCount > 0 && <span className="mobile-tab-badge">{colBookingCount}</span>}
-                </button>
-              );
-            })}
-          </div>
+          const isBookSelected = mode === 'book' && selectedKeys.has(slotKey(slot));
 
-          {mode === 'cancel' && userBookings.length > 0 && (
-            <p className="mobile-hint">{t('yourBookings')}</p>
-          )}
-          {mode === 'cancel' && cancelUsernameConfirmed && userBookings.length === 0 && (
-            <p className="mobile-hint" style={{ color: '#c00' }}>{t('noBookingsForUser')}</p>
-          )}
-          {mode === 'book' && <p className="mobile-hint">{t('slideHint')}</p>}
+          const handleClick = () => {
+            if (mode === 'book') {
+              toggleSlot(slot);
+              return;
+            }
+            if (activeKind === 'auto' && userBooking) {
+              onToggleCancel(userBooking.machineId, slot);
+              return;
+            }
+            onToggleCancel(activeCol, slot);
+          };
 
-          <div className="mobile-slots">
-            {TIME_SLOTS.map((slot) => {
-              const slotBookings = getBookings(slot);
-              const lock = getLock(slot);
-              const avail = isAvailable(slot);
-
-              // Cancel mode highlighting
-              const isUserSlot = mode === 'cancel' && userBookedSlots.has(slot);
-              const userBooking = userBookings.find((b) => b.timeSlot === slot);
-              const isCancelSelected = userBooking ? selectedBookingIds.has(userBooking.id) : false;
-
-              // Book mode highlighting
-              const isBookSelected = mode === 'book' && selected.has(slot);
-
-              return (
-                <div
-                  key={slot}
-                  data-slot={slot}
-                  className={[
-                    'mobile-slot',
-                    lock ? 'locked' : '',
-                    isBookSelected ? 'selected' : '',
-                    isCancelSelected ? 'cancel-selected' : '',
-                    isUserSlot && !isCancelSelected ? 'user-booked' : '',
-                    !avail && !lock && mode === 'book' ? 'full' : '',
-                  ].filter(Boolean).join(' ')}
-                  onClick={() => {
-                    if (mode === 'book') toggleSlot(slot);
-                    else if (mode === 'cancel') toggleCancelSlot(slot);
-                  }}
-                >
-                  <div className="mobile-slot-time">{slot}</div>
-                  <div className="mobile-slot-players">
-                    {lock ? (
-                      <span className="mobile-lock">{lock.reason || t('locked')}</span>
-                    ) : isWaitlist ? (
-                      slotBookings.map((b) => (
-                        <span
-                          key={b.id}
-                          className={`mobile-player-tag ${mode === 'cancel' && b.username.toLowerCase() === cancelUsername.trim().toLowerCase() ? 'user-highlight' : ''}`}
-                        >
-                          {b.username}
+          const slotEl = (
+            <div
+              key={slotKey(slot)}
+              data-slot={row.timeSlot}
+              className={[
+                'mobile-slot',
+                row.isOvernight ? 'overnight' : '',
+                lock && !userLock && activeKind !== 'auto' ? 'locked' : '',
+                isBookSelected ? 'selected' : '',
+                isCancelSelected ? 'cancel-selected' : '',
+                isUserSlot && !isCancelSelected ? 'user-booked' : '',
+                !avail && !lock && mode === 'book' ? 'full' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={handleClick}
+            >
+              <div className="mobile-slot-time">{row.timeSlot}</div>
+              <div className="mobile-slot-players">
+                {activeKind === 'auto' ? (
+                  (() => {
+                    const stats = autoStats(row.date, row.timeSlot);
+                    const indiv = individualRiichiBookings(row.date, row.timeSlot);
+                    return (
+                      <div className="mobile-auto-row">
+                        <span className={`auto-list-count ${stats.queueing ? 'queue' : stats.remaining <= 2 ? 'low' : ''}`}>
+                          <span className="auto-list-count-num">{stats.booked}</span>
+                          <span className="auto-list-count-suffix">/{stats.total}</span>
                         </span>
-                      ))
-                    ) : (
-                      [0, 1, 2, 3].map((i) => {
-                        const p = slotBookings[i];
-                        const isUser = p && mode === 'cancel' && p.username.toLowerCase() === cancelUsername.trim().toLowerCase();
-                        return (
-                          <span
-                            key={i}
-                            className={`mobile-seat ${p ? 'filled' : 'empty'} ${isUser ? 'user-highlight' : ''}`}
-                          >
-                            {p?.username ?? ''}
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
+                        {stats.queueing && <span className="auto-queue-badge">{t('queueShort')}</span>}
+                        <div className="auto-list-names mobile-auto-names">
+                          {indiv.length === 0 ? (
+                            <span className="auto-list-empty">·</span>
+                          ) : indiv.map((b) => {
+                            const isUser = mode === 'cancel' && b.username.toLowerCase() === userLower();
+                            const sel = isUser && selectedBookingIds.has(b.id);
+                            return (
+                              <span
+                                key={b.id}
+                                className={`auto-list-name ${isUser && !sel ? 'is-user' : ''} ${sel ? 'is-cancel-selected' : ''}`}
+                                title={b.comment ? `${b.username}: ${b.comment}` : b.username}
+                              >
+                                {b.username}
+                                {b.comment && <span className="comment-dot" aria-hidden>•</span>}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  lock ? (
+                    <span className="mobile-lock">🔒 {lock.username || lock.reason || t('guomaTableTaken')}</span>
+                  ) : !avail ? (
+                    <span className="mobile-lock">{t('guomaTablePartial')}</span>
+                  ) : (
+                    <span className="mobile-auto-state">·</span>
+                  )
+                )}
+              </div>
+            </div>
+          );
+
+          if (showDivider) {
+            return (
+              <div key={`group-${row.date}`}>
+                <div className="overnight-divider mobile-overnight-divider">
+                  <span className="overnight-divider-label">{t('overnightDivider')}</span>
+                  <span className="overnight-divider-date">{row.date}</span>
                 </div>
-              );
-            })}
-          </div>
+                {slotEl}
+              </div>
+            );
+          }
+          return slotEl;
+        })}
+      </div>
 
-          {/* Cancel mode: phone + confirm */}
-          {mode === 'cancel' && selectedBookingIds.size > 0 && (
-            <div className="mobile-confirm-bar cancel-bar">
-              <input
-                className="cancel-phone-input"
-                value={cancelPhone}
-                onChange={(e) => setCancelPhone(e.target.value)}
-                placeholder={t('phoneCancelPh')}
-              />
-              <button className="danger mobile-confirm-btn" onClick={handleCancelConfirm}>
-                {t('mobileCancelConfirm')} ({selectedBookingIds.size})
-              </button>
-            </div>
-          )}
-
-          {/* Book mode: confirm */}
-          {mode === 'book' && selected.size > 0 && (
-            <div className="mobile-confirm-bar">
-              <button className="primary mobile-confirm-btn" onClick={handleBookConfirm}>
-                {t('mobileConfirm')} ({selected.size}{t('slots')})
-              </button>
-              <button className="mobile-clear-btn" onClick={() => setSelected(new Set())}>{t('cancel')}</button>
-            </div>
-          )}
-        </>
+      {mode === 'book' && selectedSlots.length > 0 && (
+        <div className="mobile-confirm-bar">
+          <button className="primary mobile-confirm-btn" onClick={handleBookConfirm}>
+            {t('mobileConfirm')} ({selectedSlots.length}{t('slots')})
+          </button>
+          <button className="mobile-clear-btn" onClick={() => { setSelectedKeys(new Set()); setSelectedSlots([]); }}>{t('cancel')}</button>
+        </div>
       )}
     </div>
   );

@@ -14,6 +14,7 @@ model Booking {
   date      String   // YYYY-MM-DD
   timeSlot  String   // "HH:00" (10:00-27:00)
   machineId Int      // -1 = riichi waitlist, -2 = guoma waitlist
+  comment   String?  // optional note attached to the reservation
   createdAt DateTime @default(now())
 
   @@unique([date, timeSlot, machineId, username])
@@ -25,6 +26,8 @@ model Lock {
   date      String
   timeSlot  String
   reason    String   @default("")
+  username  String?  // set when user creates a 包桌 lock
+  phone     String?  // for self-cancel verification
   createdAt DateTime @default(now())
 
   @@unique([date, timeSlot, machineId])

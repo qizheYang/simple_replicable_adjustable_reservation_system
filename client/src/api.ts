@@ -31,6 +31,47 @@ export async function cancelBooking(id: number, phone: string): Promise<void> {
   }
 }
 
+export interface BatchCancelResult {
+  cancelled: { bookings: number; locks: number };
+  errors?: { id: number; kind: 'booking' | 'lock'; error: string }[];
+}
+
+export async function batchCancel(bookingIds: number[], lockIds: number[], phone: string): Promise<BatchCancelResult> {
+  const res = await fetch(`${BASE}/bookings/batch-cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookingIds, lockIds, phone }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Cancel failed');
+  }
+  return res.json();
+}
+
+export async function adminBatchCancel(bookingIds: number[], lockIds: number[], token: string): Promise<BatchCancelResult> {
+  const res = await fetch(`${BASE}/admin/batch-cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ bookingIds, lockIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Cancel failed');
+  }
+  return res.json();
+}
+
+export async function cancelUserLock(id: number, phone: string): Promise<void> {
+  const res = await fetch(`${BASE}/bookings/locks/${id}?phone=${encodeURIComponent(phone)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Cancel failed');
+  }
+}
+
 // Admin APIs
 export async function adminLogin(password: string): Promise<string> {
   const res = await fetch(`${BASE}/admin/login`, {

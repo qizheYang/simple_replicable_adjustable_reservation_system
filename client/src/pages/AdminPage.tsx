@@ -8,9 +8,8 @@ import { LangSwitcher } from '../components/LangSwitcher';
 import {
   fetchBookings,
   adminLogin,
-  adminDeleteBooking,
+  adminBatchCancel,
   adminCreateLock,
-  adminDeleteLock,
 } from '../api';
 
 type AdminMode = 'view' | 'cancel' | 'unlock' | 'lock';
@@ -71,38 +70,30 @@ export function AdminPage() {
     setSuccess('');
   };
 
-  // Batch cancel bookings
+  // Batch cancel bookings (single combined notification)
   const handleBatchCancel = async () => {
     if (!token || selectedBookingIds.size === 0) return;
     setError('');
-    let failed = 0;
-    for (const id of selectedBookingIds) {
-      try {
-        await adminDeleteBooking(id, token);
-      } catch {
-        failed++;
-      }
+    try {
+      await adminBatchCancel(Array.from(selectedBookingIds), [], token);
+      setSuccess(t('cancelled'));
+    } catch (e: any) {
+      setError(e.message || 'Cancel failed');
     }
-    if (failed > 0) setError(`${failed} failed`);
-    else setSuccess(t('cancelled'));
     setSelectedBookingIds(new Set());
     load();
   };
 
-  // Batch unlock
+  // Batch unlock (single combined notification)
   const handleBatchUnlock = async () => {
     if (!token || selectedLockIds.size === 0) return;
     setError('');
-    let failed = 0;
-    for (const id of selectedLockIds) {
-      try {
-        await adminDeleteLock(id, token);
-      } catch {
-        failed++;
-      }
+    try {
+      await adminBatchCancel([], Array.from(selectedLockIds), token);
+      setSuccess(t('unlocked'));
+    } catch (e: any) {
+      setError(e.message || 'Unlock failed');
     }
-    if (failed > 0) setError(`${failed} failed`);
-    else setSuccess(t('unlocked'));
     setSelectedLockIds(new Set());
     load();
   };

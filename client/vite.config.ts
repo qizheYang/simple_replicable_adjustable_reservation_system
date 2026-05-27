@@ -7,7 +7,7 @@ export default defineConfig({
   base: '/rsvp/',
   resolve: {
     alias: {
-      shared: path.resolve(__dirname, '../shared/src'),
+      shared: path.resolve(__dirname, '../shared/src/index.ts'),
     },
   },
   server: {

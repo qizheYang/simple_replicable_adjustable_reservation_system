@@ -8,7 +8,7 @@ interface Props {
   locks: Lock[];
   mode: 'book' | 'cancel';
   onSelect: (machineId: number, timeSlots: string[]) => void;
-  onCancelBookings: (bookingIds: number[], phone: string) => void;
+  onCancelBookings: (bookingIds: number[], lockIds: number[], phone: string) => void;
 }
 
 export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings }: Props) {
@@ -23,6 +23,7 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
   const [cancelUsername, setCancelUsername] = useState('');
   const [cancelConfirmed, setCancelConfirmed] = useState(false);
   const [selectedBookingIds, setSelectedBookingIds] = useState<Set<number>>(new Set());
+  const [selectedLockIds, setSelectedLockIds] = useState<Set<number>>(new Set());
   const [cancelPhone, setCancelPhone] = useState('');
 
   const getBookingsFor = (machineId: number, timeSlot: string) =>
@@ -68,11 +69,29 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
     dragCol === colId && dragSlots.has(slot);
 
   // Cancel mode helpers
+  const userLower = () => cancelUsername.trim().toLowerCase();
   const matchUser = (b: Booking) =>
-    cancelConfirmed && b.username.toLowerCase() === cancelUsername.trim().toLowerCase();
+    cancelConfirmed && b.username.toLowerCase() === userLower();
+  const matchUserLock = (l: Lock) =>
+    cancelConfirmed && !!l.username && l.username.toLowerCase() === userLower();
 
-  const toggleCancelBooking = (machineId: number, timeSlot: string) => {
+  const toggleCancelCell = (machineId: number, timeSlot: string) => {
     if (mode !== 'cancel' || !cancelConfirmed) return;
+
+    // Check for user lock first (包桌)
+    const userLock = locks.find(
+      (l) => l.machineId === machineId && l.timeSlot === timeSlot && matchUserLock(l)
+    );
+    if (userLock) {
+      setSelectedLockIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(userLock.id)) next.delete(userLock.id);
+        else next.add(userLock.id);
+        return next;
+      });
+      return;
+    }
+
     const booking = bookings.find(
       (b) => b.machineId === machineId && b.timeSlot === timeSlot && matchUser(b)
     );
@@ -87,16 +106,17 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
 
   const handleCellClick = (machineId: number, timeSlot: string) => {
     if (mode === 'cancel') {
-      toggleCancelBooking(machineId, timeSlot);
+      toggleCancelCell(machineId, timeSlot);
     }
   };
 
   const handleCancelConfirm = () => {
-    if (selectedBookingIds.size > 0) {
-      onCancelBookings(Array.from(selectedBookingIds), cancelPhone.trim());
+    if (selectedBookingIds.size > 0 || selectedLockIds.size > 0) {
+      onCancelBookings(Array.from(selectedBookingIds), Array.from(selectedLockIds), cancelPhone.trim());
       setCancelUsername('');
       setCancelConfirmed(false);
       setSelectedBookingIds(new Set());
+      setSelectedLockIds(new Set());
       setCancelPhone('');
     }
   };
@@ -105,6 +125,7 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
     if (cancelUsername.trim()) {
       setCancelConfirmed(true);
       setSelectedBookingIds(new Set());
+      setSelectedLockIds(new Set());
     }
   };
 
@@ -186,6 +207,9 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
                       const hasUserBooking = cb.some(matchUser);
                       const userBooking = cb.find(matchUser);
                       const isCancelSelected = userBooking ? selectedBookingIds.has(userBooking.id) : false;
+                      const isUserLock = lock && matchUserLock(lock);
+                      const isLockSelected = lock ? selectedLockIds.has(lock.id) : false;
+                      const cellClickable = mode === 'cancel' && (hasUserBooking || isUserLock);
 
                       return [0, 1, 2, 3].map((s) => {
                         const player = cb[s];
@@ -198,19 +222,29 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
                         if (isLast) cls += ' seat-border-right';
                         if (isUser && !isCancelSelected) cls += ' user-highlight-cell';
                         if (isCancelSelected && isUser) cls += ' cancel-selected-cell';
+                        if (isUserLock && !isLockSelected) cls += ' user-highlight-cell';
+                        if (isUserLock && isLockSelected) cls += ' cancel-selected-cell';
 
+                        const cellTitle = player?.comment
+                          ? `${player.username}: ${player.comment}`
+                          : player?.username || undefined;
                         return (
                           <td
                             key={`${m.id}-${slot}-${s}`}
                             className={cls}
+                            title={cellTitle}
                             onMouseDown={(e) => { e.preventDefault(); handleMouseDown(m.id, slot); }}
                             onMouseEnter={() => handleMouseEnter(m.id, slot)}
                             onClick={() => handleCellClick(m.id, slot)}
-                            style={mode === 'cancel' ? { cursor: hasUserBooking ? 'pointer' : 'default' } : undefined}
+                            style={mode === 'cancel' ? { cursor: cellClickable ? 'pointer' : 'default' } : undefined}
                           >
                             {lock && s === 0 ? <span className="lock-label">{lock.reason || t('lock')}</span>
-                              : player ? <span className="player-name">{player.username}</span>
-                              : null}
+                              : player ? (
+                                <span className="player-name">
+                                  {player.username}
+                                  {player.comment && <span className="comment-dot" aria-hidden>•</span>}
+                                </span>
+                              ) : null}
                           </td>
                         );
                       });
@@ -235,8 +269,10 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
                             <span
                               key={b.id}
                               className={`wl-name ${matchUser(b) ? (selectedBookingIds.has(b.id) ? 'wl-cancel-selected' : 'wl-user-highlight') : ''}`}
+                              title={b.comment ? `${b.username}: ${b.comment}` : undefined}
                             >
                               {b.username}
+                              {b.comment && <span className="comment-dot" aria-hidden>•</span>}
                             </span>
                           ))}
                         </td>
@@ -249,7 +285,7 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
           </div>
 
           {/* Cancel confirm bar */}
-          {mode === 'cancel' && selectedBookingIds.size > 0 && (
+          {mode === 'cancel' && (selectedBookingIds.size + selectedLockIds.size) > 0 && (
             <div className="desktop-cancel-bar">
               <input
                 className="cancel-phone-input"
@@ -258,7 +294,7 @@ export function BookingGrid({ bookings, locks, mode, onSelect, onCancelBookings 
                 placeholder={t('phoneCancelPh')}
               />
               <button className="danger" onClick={handleCancelConfirm}>
-                {t('mobileCancelConfirm')} ({selectedBookingIds.size})
+                {t('mobileCancelConfirm')} ({selectedBookingIds.size + selectedLockIds.size})
               </button>
             </div>
           )}
